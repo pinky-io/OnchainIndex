@@ -79,8 +79,12 @@ abstract contract Vault is ERC4626 {
 }
 
 contract Strategy1 is Vault, SwapHelper {
-    uint256 immutable tokenAPercentage;
-    uint256 immutable tokenBPercentage;
+    using SwapHelperLibrary for IPoolManager;
+
+    // todo uint256 is unecessary large for a bps
+    uint256 immutable tokenABps;
+    uint256 immutable tokenBBps;
+    uint256 constant BPS_LIMIT = 10_000;
 
     constructor(
         IERC20 _underlyingAsset,
@@ -94,8 +98,8 @@ contract Strategy1 is Vault, SwapHelper {
         Vault(_underlyingAsset, _assetA, _assetB, _pool, "Strategy1", "STRAT1")
         SwapHelper(_poolManager, address(_assetA), keyA, address(_assetB), keyB)
     {
-        tokenAPercentage = 80;
-        tokenBPercentage = 20;
+        tokenABps = 8000;
+        tokenBBps = 2000;
     }
 
     // compute the amount of token A & token B that will be received from underlyingTokenAmount

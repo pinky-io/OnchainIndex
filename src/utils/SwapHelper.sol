@@ -8,31 +8,33 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {SafeCast} from "v4-core/src/libraries/SafeCast.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 
 // Helper function to swap using a Uniswap V4 pool.
 // It is declared in a library to be injected in the IPoolManager type, using 'using' operator.
-library _SwapHelper {
+library SwapHelperLibrary {
     using StateLibrary for IPoolManager;
 
     uint24 public constant poolFee = 3000; // 0.3%
 
     function swapExactInputSingle(IPoolManager poolManager, uint256 amountIn, address tokenIn, PoolKey memory key)
-        internal
+        external
         returns (uint256 amountOut)
     {
+        bool zeroForOne = tokenIn == Currency.unwrap(key.currency0);
         // Approve the router to spend 'tokenIn'.
         IERC20(tokenIn).approve(address(poolManager), amountIn);
 
         // Naively set amountOutMinimum to 0. In production, use an oracle or other data source to choose a safer value for amountOutMinimum.
         // We also set the sqrtPriceLimitx96 to be 0 to ensure we swap our exact input amount.
-        IPoolManager.SwapParams memory params =
-            IPoolManager.SwapParams(tokenIn == Currency.unwrap(key.currency0), int256(amountIn), 0);
+        IPoolManager.SwapParams memory params = IPoolManager.SwapParams(zeroForOne, int256(amountIn), 0);
 
         // Proceed to swap, cast operations are unsecured as of now.
-        amountOut = uint256(int256(poolManager.swap(key, params, "").amount1()));
+        BalanceDelta res = poolManager.swap(key, params, "");
+        amountOut = uint256(int256(zeroForOne ? res.amount1() : res.amount0()));
     }
 
-    function getPoolPrice(IPoolManager poolManager, PoolKey memory key) internal view returns (uint256) {
+    function getPoolPrice(IPoolManager poolManager, PoolKey memory key) external view returns (uint256) {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(PoolIdLibrary.toId(key));
 
         uint256 price = sqrtPriceX96; // TODO: uint256 is not large enough to hold (type(uint160).max)^2
@@ -40,10 +42,8 @@ library _SwapHelper {
     }
 }
 
-// Abstract contract wrapper to be inherited
+// Abstract contract wrapper to be inherited to include relevant data
 abstract contract SwapHelper {
-    using _SwapHelper for IPoolManager;
-
     mapping(address token => PoolKey key) internal keys;
     IPoolManager immutable poolManager;
 
