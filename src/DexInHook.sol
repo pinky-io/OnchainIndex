@@ -24,6 +24,7 @@ contract DexInHook is BaseHook {
     using SafeCast for int256;
     using StateLibrary for IPoolManager;
     using Pool for Pool.State;
+    using CurrencyLibrary for Currency;
 
     enum LiquidityState {
         EnoughLiquidity,
@@ -92,42 +93,41 @@ contract DexInHook is BaseHook {
         bytes calldata
     ) external override returns (bytes4, int128) {
         int256 amountSpecified = params.amountSpecified;
-        console.log("Amount specified: ", amountSpecified);
+        if (amountSpecified < 0) {
+            return (BaseHook.afterSwap.selector, 0);
+        }
         bool zeroForOne = params.zeroForOne;
         if (zeroForOne) {
-            int256 castedAmount0 = int256(balanceDelta.amount0());
-            console.log("Delta amount0: ", balanceDelta.amount0());
-            console.log("Casted Delta amount0: ", castedAmount0);
-
-            int256 amountDifference = castedAmount0 - amountSpecified;
-            uint256 castedAmountDifference = uint256(amountDifference);
-            console.log("Amount difference: ", amountDifference);
-            console.log("Casted Amount difference: ", castedAmountDifference);
-
-            if (amountDifference > 0) {
-                // Mint Shares
-                Currency input = params.zeroForOne ? key.currency0 : key.currency1;
-                input.balanceOf(address(manager));
-                manager.take(input, vault, castedAmountDifference);
-                emit NeedToMintShares();
+            // AMOUNT0 OUT : i.e i want to get usdc and give shares
+            int128 realisedAmount0 = balanceDelta.amount0();
+            int128 realisedAmount1 = balanceDelta.amount1();
+            uint256 shares = stdMath.abs(int256(realisedAmount1));
+            if (realisedAmount0 < 0) {
+                realisedAmount0 = -realisedAmount0;
+            }
+            int256 diffAmount = amountSpecified - realisedAmount0;
+            if (diffAmount > 0) {
+                // burn shares
+                emit NeedToBurnShares();
+                manager.take(key.currency1, vault, shares);
+                return (BaseHook.afterSwap.selector, shares.toInt128());
+            } else {
+                return (BaseHook.afterSwap.selector, 0);
+            }
+        } else {
+            // AMOUNT1 OUT : i.e i want to get shares
+            int128 realisedAmount1 = balanceDelta.amount1();
+            console.log("realisedAmount1: ", realisedAmount1);
+            // amount specified is in token 1
+            int256 diffAmount = amountSpecified - realisedAmount1;
+            if (diffAmount > 0) {
+                // mint shares
+                emit NeedToBurnShares();
+                manager.take(key.currency1, vault, uint256(diffAmount));
+                return (BaseHook.afterSwap.selector, diffAmount.toInt128());
+            } else {
+                return (BaseHook.afterSwap.selector, 0);
             }
         }
-        return (BaseHook.afterSwap.selector, balanceDelta.amount1());
     }
-
-    // function checkSwapLiquidity(PoolKey calldata key, IPoolManager.SwapParams calldata params)
-    //     internal
-    //     returns (LiquidityState)
-    // {
-    //     // Check if the swap requires the minting of new shares in the vault
-    //     // To be implemented
-    //     PoolId poolId = key.toId();
-    //     (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolId);
-    //     int24 my_tick = FakeState.initialize(sqrtPriceX96, protocolFee, lpFee);
-    //     Pool.SwapParams memory swap_params =
-    //         Pool.SwapParams(key.tickSpacing, params.zeroForOne, params.amountSpecified, params.sqrtPriceLimitX96, 0);
-    //     (BalanceDelta result, uint256 feeForProtocol, uint24 swapFee, Pool.SwapState memory post_swap_state) =
-    //         FakeState.swap(swap_params);
-    //     return LiquidityState.EnoughLiquidity;
-    // }
 }

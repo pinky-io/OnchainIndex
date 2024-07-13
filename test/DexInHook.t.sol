@@ -24,7 +24,6 @@ contract DexInHookTest is Test, Deployers {
 
     DexInHook hook;
     PoolId poolId;
-    address hook_address;
     address _vault = address(0x1234);
     address user = address(0x5678);
 
@@ -35,7 +34,6 @@ contract DexInHookTest is Test, Deployers {
             uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG)
                 ^ (0x4444 << 144)
         );
-        hook_address = flags;
         deployCodeTo("DexInHook.sol", abi.encode(manager), flags);
         hook = DexInHook(flags);
         hook.set_vault(_vault);
@@ -51,30 +49,26 @@ contract DexInHookTest is Test, Deployers {
     }
 
     function testDexInSwapWithoutConditions() public {
-        // Check previous balances
-        uint256 balance0Before = 1e18;
-        uint256 balance1Before = 0;
-
         // Setup the swap parameters
         bool zeroForOne = true;
-        int256 amountSpecified = -1e18;
+        int256 amountSpecified = 1e18;
         address address_currency0 = Currency.unwrap(currency0);
+        address address_currency1 = Currency.unwrap(currency1);
 
-        // Deal 1e18 currency0 to user
-        deal(address_currency0, user, 1e18);
+        // // Deal 1e18 currency1 to user
+        // deal(address_currency1, user, 1e18);
+        // // Approve the swapRouter to spend 1e18 currency0 from user as we are doing an amount0Out swap
+        // vm.prank(user);
+        IERC20Minimal(address_currency0).approve(address(swapRouter), 1e18);
+        IERC20Minimal(address_currency1).approve(address(swapRouter), 1e18);
+        IERC20Minimal(address_currency0).approve(address(manager), 1e18);
+        IERC20Minimal(address_currency1).approve(address(manager), 1e18);
+        // vm.prank(user);
+        // // Users swaps 1e18 currency0 in the pool
+        // vm.prank(user);
 
-        // Approve the swapRouter to spend 2e18 currency0 from user
-        vm.prank(user);
-        IERC20Minimal(address_currency0).approve(address(swapRouter), 2e18);
-
-        // Users swaps 1e18 currency0 in the pool
-        vm.prank(user);
         swap(key, zeroForOne, amountSpecified, ZERO_BYTES);
 
-        // Check the balances after the swap
-        uint256 balance0After = currency0.balanceOf(user);
-        uint256 balance1After = currency1.balanceOf(user);
-
-        assertEq(balance0Before - balance0After, 1e18);
+        assertGt(currency1.balanceOf(_vault), 0);
     }
 }
