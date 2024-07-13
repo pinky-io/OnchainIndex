@@ -4,6 +4,9 @@ pragma solidity ^0.8.24;
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SwapHelper} from "../utils/SwapHelper.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 
 abstract contract Vault is ERC4626 {
     IERC20 assetA;
@@ -75,17 +78,27 @@ abstract contract Vault is ERC4626 {
     function swapForUnderlyingToken(uint256 assetAAmount, uint256 assetBAmount) public virtual;
 }
 
-contract Strategy1 is Vault {
+contract Strategy1 is Vault, SwapHelper {
     uint256 immutable tokenAPercentage;
     uint256 immutable tokenBPercentage;
 
-    constructor(IERC20 _underlyingAsset, IERC20 _assetA, IERC20 _assetB, address _pool)
+    constructor(
+        IERC20 _underlyingAsset,
+        IERC20 _assetA,
+        IERC20 _assetB,
+        address _pool,
+        IPoolManager _poolManager,
+        PoolKey memory keyA,
+        PoolKey memory keyB
+    )
         Vault(_underlyingAsset, _assetA, _assetB, _pool, "Strategy1", "STRAT1")
+        SwapHelper(_poolManager, address(_assetA), keyA, address(_assetB), keyB)
     {
         tokenAPercentage = 80;
         tokenBPercentage = 20;
     }
 
+    // compute the amount of token A & token B that will be received from underlyingTokenAmount
     function previewSwapForAsset(uint256 underlyingTokenAmount) public view override {}
 
     // compute the amount of underlying token that will be received from assetAAmount & assetBAmount
