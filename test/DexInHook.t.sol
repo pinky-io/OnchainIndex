@@ -31,7 +31,10 @@ contract DexInHookTest is Test, Deployers {
     function setUp() public {
         Deployers.deployFreshManagerAndRouters();
         Deployers.deployMintAndApprove2Currencies();
-        address flags = address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x4444 << 144));
+        address flags = address(
+            uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG)
+                ^ (0x4444 << 144)
+        );
         hook_address = flags;
         deployCodeTo("DexInHook.sol", abi.encode(manager), flags);
         hook = DexInHook(flags);

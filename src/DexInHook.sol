@@ -14,11 +14,14 @@ import {SafeCast} from "v4-core/src/libraries/SafeCast.sol";
 import {Pool} from "v4-core/src/libraries/Pool.sol";
 import {Slot0} from "v4-core/src/types/Slot0.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {stdMath} from "forge-std/StdMath.sol";
+import "forge-std/console.sol";
 
 contract DexInHook is BaseHook {
     using PoolIdLibrary for PoolKey;
     using PoolIdLibrary for PoolKey;
     using SafeCast for uint256;
+    using SafeCast for int256;
     using StateLibrary for IPoolManager;
     using Pool for Pool.State;
 
@@ -58,7 +61,7 @@ contract DexInHook is BaseHook {
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
-            afterSwapReturnDelta: false,
+            afterSwapReturnDelta: true,
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
@@ -89,29 +92,27 @@ contract DexInHook is BaseHook {
         bytes calldata
     ) external override returns (bytes4, int128) {
         int256 amountSpecified = params.amountSpecified;
-        if (amountSpecified < 0) {
-            amountSpecified = int256(-amountSpecified);
-        }
+        console.log("Amount specified: ", amountSpecified);
         bool zeroForOne = params.zeroForOne;
-        int256 amountExecuted;
         if (zeroForOne) {
-            int256 amountDifference = amountSpecified - int256(-BalanceDeltaLibrary.amount0(balanceDelta));
+            int256 castedAmount0 = int256(balanceDelta.amount0());
+            console.log("Delta amount0: ", balanceDelta.amount0());
+            console.log("Casted Delta amount0: ", castedAmount0);
+
+            int256 amountDifference = castedAmount0 - amountSpecified;
+            uint256 castedAmountDifference = uint256(amountDifference);
+            console.log("Amount difference: ", amountDifference);
+            console.log("Casted Amount difference: ", castedAmountDifference);
+
             if (amountDifference > 0) {
                 // Mint Shares
                 Currency input = params.zeroForOne ? key.currency0 : key.currency1;
-                manager.take(input, vault, uint256(amountDifference));
+                input.balanceOf(address(manager));
+                manager.take(input, vault, castedAmountDifference);
                 emit NeedToMintShares();
             }
-        } else {
-            int256 amountDifference = amountSpecified - BalanceDeltaLibrary.amount1(balanceDelta);
-            if (amountDifference > 0) {
-                // Burn Shares
-                Currency input = params.zeroForOne ? key.currency0 : key.currency1;
-                manager.take(input, vault, uint256(amountDifference));
-                emit NeedToBurnShares();
-            }
         }
-        return (BaseHook.afterSwap.selector, 0);
+        return (BaseHook.afterSwap.selector, balanceDelta.amount1());
     }
 
     // function checkSwapLiquidity(PoolKey calldata key, IPoolManager.SwapParams calldata params)
