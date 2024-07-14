@@ -175,10 +175,12 @@ contract Strategy1 is Vault, SwapHelper {
 
     function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
         // compute how many assets A & B can be get from assets amount, then compute shares amount
+        return super._convertToAssets(assets, rounding);
     }
 
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
         // compute how many assets A & B can be get from shares amount, then compute both assets value in underlying asset
+        return super._convertToAssets(shares, rounding);
     }
 
     // compute the amount of token A & token B that will be received from underlyingTokenAmount
