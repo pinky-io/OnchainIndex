@@ -78,8 +78,8 @@ contract SwapHelperTest is Test, Deployers {
         address addressUnderlyingCurrency = Currency.unwrap(underlyingCurrency);
 
         deal(addressUnderlyingCurrency, address(this), 1e18);
-        IERC20(addressUnderlyingCurrency).approve(address(vault), amountSpecified);
 
+        IERC20(addressUnderlyingCurrency).approve(address(vault), vault.convertToAssets(amountSpecified));
         uint256 amountOut = vault.mint(amountSpecified, address(manager));
 
         assert(amountOut > 0);
