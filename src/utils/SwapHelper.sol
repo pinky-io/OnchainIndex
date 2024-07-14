@@ -44,11 +44,13 @@ abstract contract SwapHelper {
 
     uint24 public constant poolFee = 3000; // 0.3%
 
-    function swapExactInputSingle(int256 amountIn, address tokenIn, PoolKey memory key, bool zeroForOne)
+    function swapExactInputSingle(int256 amountIn, PoolKey memory key, bool zeroForOne)
         public
         returns (uint256 amountOut)
     {
-        IERC20(tokenIn).approve(address(swapRouter), stdMath.abs(amountIn));
+        IERC20(zeroForOne ? Currency.unwrap(key.currency0) : Currency.unwrap(key.currency1)).approve(
+            address(swapRouter), stdMath.abs(amountIn)
+        );
 
         IPoolManager.SwapParams memory params =
             IPoolManager.SwapParams(zeroForOne, amountIn, zeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT);

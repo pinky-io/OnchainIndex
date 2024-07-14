@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SwapHelper, ISwapRouter} from "../utils/SwapHelper.sol";
+import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import "forge-std/StdMath.sol";
 
@@ -96,6 +97,7 @@ abstract contract Vault is ERC4626 {
 }
 
 contract Strategy1 is Vault, SwapHelper {
+    using CurrencyLibrary for Currency;
     using Math for uint256;
 
     // todo uint256 is unecessary large for a bps
@@ -138,17 +140,20 @@ contract Strategy1 is Vault, SwapHelper {
         uint256 receivedUnderlying = 0;
 
         if (buyOrSell > 0) {
+            PoolKey memory keyA = keys[address(assetA)];
             uint256 amountB = stdMath.abs(buyOrSell) * balanceAssetB / BPS_LIMIT;
             (, receivedUnderlying) = _swapForUnderlyingToken(0, amountB);
             uint256 receivedAmountA =
-                swapExactInputSingle(-int256(receivedUnderlying), asset(), keys[address(assetA)], true);
+                swapExactInputSingle(-int256(receivedUnderlying), keyA, Currency.unwrap(keyA.currency0) == asset());
 
             emit Rebalance(int256(receivedAmountA), -int256(amountB));
         } else {
+            PoolKey memory keyB = keys[address(assetB)];
             uint256 amountA = stdMath.abs(buyOrSell) * balanceAssetA / BPS_LIMIT;
             (, receivedUnderlying) = _swapForUnderlyingToken(0, amountA);
-            uint256 receivedAmountB =
-                swapExactInputSingle(-int256(receivedUnderlying), asset(), keys[address(assetB)], true);
+            uint256 receivedAmountB = swapExactInputSingle(
+                -int256(receivedUnderlying), keys[address(assetB)], Currency.unwrap(keyB.currency0) == asset()
+            );
 
             emit Rebalance(-int256(amountA), int256(receivedAmountB));
         }
@@ -190,17 +195,16 @@ contract Strategy1 is Vault, SwapHelper {
     function _previewSwapForUnderlyingToken(uint256 assetAAmount, uint256 assetBAmount) internal view override {}
 
     function _swapForAsset(uint256 underlyingTokenAmount) internal override {
-        address underlyingToken = asset();
         PoolKey memory keyA = keys[address(assetA)];
         PoolKey memory keyB = keys[address(assetB)];
 
         // swap for token A
         uint256 amountForSwapA = underlyingTokenAmount * tokenABps / BPS_LIMIT;
-        swapExactInputSingle(-int256(amountForSwapA), underlyingToken, keyA, true);
+        swapExactInputSingle(-int256(amountForSwapA), keyA, Currency.unwrap(keyA.currency0) == asset());
 
         // swap for token B
         uint256 amountForSwapB = underlyingTokenAmount * tokenBBps / BPS_LIMIT;
-        swapExactInputSingle(-int256(amountForSwapB), underlyingToken, keyB, true);
+        swapExactInputSingle(-int256(amountForSwapB), keyB, Currency.unwrap(keyB.currency0) == asset());
     }
 
     function _swapForUnderlyingToken(uint256 assetAAmount, uint256 assetBAmount)
@@ -216,12 +220,12 @@ contract Strategy1 is Vault, SwapHelper {
 
         // swap token A for underlying
         if (assetAAmount > 0) {
-            resAssetA = swapExactInputSingle(-int256(assetAAmount), underlyingToken, keyA, false);
+            resAssetA = swapExactInputSingle(-int256(assetAAmount), keyA, Currency.unwrap(keyA.currency1) == asset());
         }
 
         // swap token B for underlying
         if (assetBAmount > 0) {
-            resAssetB = swapExactInputSingle(-int256(assetBAmount), underlyingToken, keyB, false);
+            resAssetB = swapExactInputSingle(-int256(assetBAmount), keyB, Currency.unwrap(keyB.currency1) == asset());
         }
 
         return (resAssetA, resAssetB);

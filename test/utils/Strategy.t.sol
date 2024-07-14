@@ -1,32 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {SwapHelper, ISwapRouter} from "../../src/utils/SwapHelper.sol";
+import {Strategy1} from "../../src/Strategy/Strategy.sol";
+import {ISwapRouter} from "../../src/utils/SwapHelper.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
-import {IERC20Minimal} from "v4-core/src/interfaces/external/IERC20Minimal.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 import "forge-std/Test.sol";
 
 address constant ADDRESS_ZERO = address(0);
 
-contract SwapHelperMock is SwapHelper {
-    constructor(ISwapRouter _poolManager, address tokenA, PoolKey memory keyA, address tokenB, PoolKey memory keyB)
-        SwapHelper(_poolManager, tokenA, keyA, tokenB, keyB)
-    {}
-}
-
 contract SwapHelperTest is Test, Deployers {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
     PoolId poolId;
-    SwapHelperMock vault;
+    Strategy1 vault;
     Currency underlyingCurrency;
     PoolKey key0;
     PoolKey key1;
@@ -56,8 +51,14 @@ contract SwapHelperTest is Test, Deployers {
             ZERO_BYTES
         );
 
-        vault = new SwapHelperMock(
-            ISwapRouter(address(swapRouter)), Currency.unwrap(currency0), key0, Currency.unwrap(currency1), key1
+        vault = new Strategy1(
+            IERC20(Currency.unwrap(underlyingCurrency)),
+            IERC20(Currency.unwrap(currency0)),
+            IERC20(Currency.unwrap(currency1)),
+            address(manager),
+            ISwapRouter(address(swapRouter)),
+            key0,
+            key1
         );
     }
 
@@ -68,6 +69,18 @@ contract SwapHelperTest is Test, Deployers {
         deal(addressUnderlyingCurrency, address(vault), 1e18);
 
         uint256 amountOut = vault.swapExactInputSingle(amountSpecified, key1, false);
+
+        assert(amountOut > 0);
+    }
+
+    function testMintShares() public {
+        uint256 amountSpecified = 10;
+        address addressUnderlyingCurrency = Currency.unwrap(underlyingCurrency);
+
+        deal(addressUnderlyingCurrency, address(this), 1e18);
+        IERC20(addressUnderlyingCurrency).approve(address(vault), amountSpecified);
+
+        uint256 amountOut = vault.mint(amountSpecified, address(manager));
 
         assert(amountOut > 0);
     }
