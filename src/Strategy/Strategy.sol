@@ -90,13 +90,18 @@ abstract contract Vault is ERC4626 {
     /// Helpers ///
 
     function _assetsBalance() internal view returns (uint256 assetAPerShare, uint256 assetBPerShare) {
-        // uint256 totalAssets = assetA.balanceOf(address(this)) + assetB.balanceOf(address(this));
-        assetAPerShare = assetA.balanceOf(address(this)) / totalSupply(); // should we compensate with decimals from the ERC4626 token?
-        assetBPerShare = assetB.balanceOf(address(this)) / totalSupply();
+        uint256 assetABalance = assetA.balanceOf(address(this));
+        uint256 assetBBalance = assetB.balanceOf(address(this));
+
+        if (totalSupply() == 0) {
+            return (assetABalance, assetBBalance);
+        } else {
+            return (assetABalance / totalSupply(), assetBBalance / totalSupply());
+        }
     }
 }
 
-contract Strategy1 is Vault, SwapHelper {
+contract FixedWeightStrategy is Vault, SwapHelper {
     using CurrencyLibrary for Currency;
     using Math for uint256;
 
@@ -117,7 +122,7 @@ contract Strategy1 is Vault, SwapHelper {
         PoolKey memory keyA,
         PoolKey memory keyB
     )
-        Vault(_underlyingAsset, _assetA, _assetB, _pool, "Strategy1", "STRAT1")
+        Vault(_underlyingAsset, _assetA, _assetB, _pool, "FixedWeightStrategy", "STRAT1")
         SwapHelper(_swapRouter, address(_assetA), keyA, address(_assetB), keyB)
     {
         tokenABps = 8000;
@@ -220,12 +225,14 @@ contract Strategy1 is Vault, SwapHelper {
 
         // swap token A for underlying
         if (assetAAmount > 0) {
-            resAssetA = swapExactInputSingle(-int256(assetAAmount), keyA, Currency.unwrap(keyA.currency1) == asset());
+            resAssetA =
+                swapExactInputSingle(-int256(assetAAmount), keyA, Currency.unwrap(keyA.currency1) == underlyingToken);
         }
 
         // swap token B for underlying
         if (assetBAmount > 0) {
-            resAssetB = swapExactInputSingle(-int256(assetBAmount), keyB, Currency.unwrap(keyB.currency1) == asset());
+            resAssetB =
+                swapExactInputSingle(-int256(assetBAmount), keyB, Currency.unwrap(keyB.currency1) == underlyingToken);
         }
 
         return (resAssetA, resAssetB);

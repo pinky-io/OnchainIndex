@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.4;
 
-interface IStrategy1 {
+interface IFixedWeightStrategy {
     type Currency is address;
 
     struct PoolKey {
@@ -26,10 +26,12 @@ interface IStrategy1 {
     error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max);
     error ERC4626ExceededMaxWithdraw(address owner, uint256 assets, uint256 max);
     error FailedInnerCall();
+    error MathOverflowedMulDiv();
     error SafeERC20FailedOperation(address token);
 
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+    event Rebalance(int256 amountAssetA, int256 amountAssetB);
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Withdraw(
         address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
@@ -47,6 +49,7 @@ interface IStrategy1 {
     function decreaseAllowance(address spender, uint256 requestedDecrease) external returns (bool);
     function deposit(uint256 assets, address receiver) external returns (uint256);
     function getPoolPrice(address poolManager, PoolKey memory key) external view returns (uint256);
+    function getRatioA() external view returns (uint256);
     function increaseAllowance(address spender, uint256 addedValue) external returns (bool);
     function maxDeposit(address addr) external view returns (uint256);
     function maxMint(address addr) external view returns (uint256);
@@ -59,8 +62,9 @@ interface IStrategy1 {
     function previewMint(uint256 shares) external view returns (uint256);
     function previewRedeem(uint256 shares) external view returns (uint256);
     function previewWithdraw(uint256 assets) external view returns (uint256);
+    function rebalance() external;
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
-    function swapExactInputSingle(int256 amountIn, address tokenIn, PoolKey memory key, bool zeroForOne)
+    function swapExactInputSingle(int256 amountIn, PoolKey memory key, bool zeroForOne)
         external
         returns (uint256 amountOut);
     function symbol() external view returns (string memory);

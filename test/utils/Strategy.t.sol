@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Strategy1} from "../../src/Strategy/Strategy.sol";
+import {FixedWeightStrategy} from "../../src/Strategy/Strategy.sol";
 import {ISwapRouter} from "../../src/utils/SwapHelper.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
@@ -21,7 +21,7 @@ contract SwapHelperTest is Test, Deployers {
     using CurrencyLibrary for Currency;
 
     PoolId poolId;
-    Strategy1 vault;
+    FixedWeightStrategy vault;
     Currency underlyingCurrency;
     PoolKey key0;
     PoolKey key1;
@@ -51,7 +51,7 @@ contract SwapHelperTest is Test, Deployers {
             ZERO_BYTES
         );
 
-        vault = new Strategy1(
+        vault = new FixedWeightStrategy(
             IERC20(Currency.unwrap(underlyingCurrency)),
             IERC20(Currency.unwrap(currency0)),
             IERC20(Currency.unwrap(currency1)),
