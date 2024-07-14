@@ -185,7 +185,7 @@ contract FixedWeightStrategy is Vault, SwapHelper {
 
     function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
         // compute how many assets A & B can be get from assets amount, then compute shares amount
-        return super._convertToAssets(assets, rounding);
+        return super._convertToShares(assets, rounding);
     }
 
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
