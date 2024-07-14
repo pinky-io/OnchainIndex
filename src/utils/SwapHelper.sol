@@ -34,13 +34,7 @@ abstract contract SwapHelper {
     uint160 public constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
     uint160 public constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
 
-    constructor(
-        ISwapRouter _swapRouter,
-        address tokenA,
-        PoolKey memory keyA,
-        address tokenB,
-        PoolKey memory keyB
-    ) {
+    constructor(ISwapRouter _swapRouter, address tokenA, PoolKey memory keyA, address tokenB, PoolKey memory keyB) {
         swapRouter = _swapRouter;
         keys[tokenA] = keyA;
         keys[tokenB] = keyB;
@@ -50,53 +44,24 @@ abstract contract SwapHelper {
 
     uint24 public constant poolFee = 3000; // 0.3%
 
-    event SwapInitiated(
-        address indexed tokenIn,
-        uint256 amountIn,
-        address poolManager
-    );
-    event SwapParameters(bool zeroForOne, int256 amountIn);
-    event SwapResult(uint256 amountOut);
+    function swapExactInputSingle(int256 amountIn, address tokenIn, PoolKey memory key, bool zeroForOne)
+        public
+        returns (uint256 amountOut)
+    {
+        IERC20(tokenIn).approve(address(swapRouter), stdMath.abs(amountIn));
 
-    function swapExactInputSingle(
-        int256 amountIn,
-        address tokenIn,
-        PoolKey memory key
-    ) external returns (uint256 amountOut) {
-        emit SwapInitiated(tokenIn, stdMath.abs(amountIn), swapRouter.manager.address);
+        IPoolManager.SwapParams memory params =
+            IPoolManager.SwapParams(zeroForOne, amountIn, zeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT);
 
-        bool zeroForOne = tokenIn == Currency.unwrap(key.currency0);
-        IERC20(tokenIn).approve(swapRouter.manager.address, stdMath.abs(amountIn));
-
-        IPoolManager.SwapParams memory params = IPoolManager.SwapParams(
-            zeroForOne,
-            int256(amountIn),
-            zeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-        );
-
-        emit SwapParameters(zeroForOne, int256(amountIn));
-
-        BalanceDelta res = swapRouter.swap(
-            key,
-            params,
-            PoolSwapTest.TestSettings(false, false),
-            ""
-        );
+        BalanceDelta res = swapRouter.swap(key, params, PoolSwapTest.TestSettings(false, false), "");
 
         amountOut = uint256(int256(zeroForOne ? res.amount1() : res.amount0()));
-
-        emit SwapResult(amountOut);
     }
 
-    function getPoolPrice(
-        IPoolManager poolManager,
-        PoolKey memory key
-    ) external view returns (uint256) {
-        (uint160 sqrtPriceX96, , , ) = poolManager.getSlot0(
-            PoolIdLibrary.toId(key)
-        );
+    function getPoolPrice(IPoolManager poolManager, PoolKey memory key) public view returns (uint256) {
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(PoolIdLibrary.toId(key));
 
-        uint256 price = sqrtPriceX96; // TODO: uint256 is not large enough to hold (type(uint160).max)^2
-        return price * price; // it's a square root, so computing its square gives us the real price
+        uint256 sqrtprice = sqrtPriceX96 / (2 ** 96); // TODO: uint256 is not large enough to hold (type(uint160).max)^2
+        return sqrtprice * sqrtprice; // it's a square root, so computing its square gives us the real price
     }
 }

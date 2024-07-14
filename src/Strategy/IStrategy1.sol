@@ -1,7 +1,19 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.4;
 
 interface IStrategy1 {
+    type Currency is address;
+
+    struct PoolKey {
+        Currency currency0;
+        Currency currency1;
+        uint24 fee;
+        int24 tickSpacing;
+        address hooks;
+    }
+
+    error AddressEmptyCode(address target);
+    error AddressInsufficientBalance(address account);
     error ERC20FailedDecreaseAllowance(address spender, uint256 currentAllowance, uint256 requestedDecrease);
     error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed);
     error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed);
@@ -13,6 +25,8 @@ interface IStrategy1 {
     error ERC4626ExceededMaxMint(address receiver, uint256 shares, uint256 max);
     error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max);
     error ERC4626ExceededMaxWithdraw(address owner, uint256 assets, uint256 max);
+    error FailedInnerCall();
+    error SafeERC20FailedOperation(address token);
 
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
@@ -21,6 +35,8 @@ interface IStrategy1 {
         address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
     );
 
+    function MAX_PRICE_LIMIT() external view returns (uint160);
+    function MIN_PRICE_LIMIT() external view returns (uint160);
     function allowance(address owner, address spender) external view returns (uint256);
     function approve(address spender, uint256 value) external returns (bool);
     function asset() external view returns (address);
@@ -30,6 +46,7 @@ interface IStrategy1 {
     function decimals() external view returns (uint8);
     function decreaseAllowance(address spender, uint256 requestedDecrease) external returns (bool);
     function deposit(uint256 assets, address receiver) external returns (uint256);
+    function getPoolPrice(address poolManager, PoolKey memory key) external view returns (uint256);
     function increaseAllowance(address spender, uint256 addedValue) external returns (bool);
     function maxDeposit(address addr) external view returns (uint256);
     function maxMint(address addr) external view returns (uint256);
@@ -37,15 +54,15 @@ interface IStrategy1 {
     function maxWithdraw(address owner) external view returns (uint256);
     function mint(uint256 shares, address receiver) external returns (uint256);
     function name() external view returns (string memory);
+    function poolFee() external view returns (uint24);
     function previewDeposit(uint256 assets) external view returns (uint256);
     function previewMint(uint256 shares) external view returns (uint256);
     function previewRedeem(uint256 shares) external view returns (uint256);
-    function previewSwapForAsset(uint256 underlyingTokenAmount) external view;
-    function previewSwapForUnderlyingToken(uint256 assetAAmount, uint256 assetBAmount) external view;
     function previewWithdraw(uint256 assets) external view returns (uint256);
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
-    function swapForAsset(uint256 underlyingTokenAmount) external;
-    function swapForUnderlyingToken(uint256 assetAAmount, uint256 assetBAmount) external;
+    function swapExactInputSingle(int256 amountIn, address tokenIn, PoolKey memory key, bool zeroForOne)
+        external
+        returns (uint256 amountOut);
     function symbol() external view returns (string memory);
     function totalAssets() external view returns (uint256);
     function totalSupply() external view returns (uint256);
