@@ -28,20 +28,12 @@ abstract contract Vault is ERC4626 {
         pool = _pool;
     }
 
-    function maxDeposit(address addr) public view override returns (uint256) {
-        if (addr == pool) {
-            return type(uint256).max;
-        } else {
-            return 0;
-        }
+    function maxDeposit(address addr) public pure override returns (uint256) {
+        return type(uint256).max;
     }
 
     function maxMint(address addr) public view override returns (uint256) {
-        if (addr == pool) {
-            return type(uint256).max;
-        } else {
-            return 0;
-        }
+        return type(uint256).max;
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
