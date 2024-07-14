@@ -11,29 +11,19 @@ import {toBeforeSwapDelta, BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-cor
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {IERC20Minimal} from "v4-core/src/interfaces/external/IERC20Minimal.sol";
 import {SafeCast} from "v4-core/src/libraries/SafeCast.sol";
+import {IFixedWeightStrategy} from "./Strategy/IFixedWeightStrategy.sol";
+import {Lock} from "v4-core/src/libraries/Lock.sol";
 
 contract DexInHook is BaseHook {
     using PoolIdLibrary for PoolKey;
-    using PoolIdLibrary for PoolKey;
     using SafeCast for uint256;
+    using SafeCast for int256;
+    using Lock for IPoolManager;
 
-    enum LiquidityState {
-        EnoughLiquidity,
-        NotEnoughToken0,
-        NotEnoughToken1
-    }
+    address public immutable vaultAddress;
 
-    address vault;
-
-    // NOTE: ---------------------------------------------------------
-    // state variables should typically be unique to a pool
-    // a single hook contract should be able to service multiple pools
-    // ---------------------------------------------------------------
-
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
-
-    function set_vault(address _vault) external {
-        vault = _vault;
+    constructor(IPoolManager _poolManager, address _vaultAddress) BaseHook(_poolManager) {
+        vaultAddress = _vaultAddress;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -60,35 +50,38 @@ contract DexInHook is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        LiquidityState result = checkSwapLiquidity(key, params);
-        uint256 amountToken0 = 0;
-        uint256 amountToken1 = 0;
-
-        if (result == LiquidityState.NotEnoughToken0) {
-            // Do associated logic
-        } else if (result == LiquidityState.NotEnoughToken1) {
-            // Do associated logic
+        int256 amountSpecified = params.amountSpecified;
+        if (amountSpecified >= 0) {
+            revert("Cannot swap using exact output amount");
         }
 
-        if (checkRebalancing()) {
-            // Do associated logic
-        }
-        return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(amountToken0.toInt128(), amountToken1.toInt128()), 0);
-    }
-
-    function checkRebalancing() internal returns (bool) {
-        // Check the vault needs rebalancing or not
-        // To be implemented
-        return false;
-    }
-
-    function checkSwapLiquidity(PoolKey calldata key, IPoolManager.SwapParams calldata params)
-        internal
-        returns (LiquidityState)
-    {
-        // Check if the swap requires the minting of new shares in the vault
-        // To be implemented
+        amountSpecified = -amountSpecified;
         bool zeroForOne = params.zeroForOne;
-        return LiquidityState.EnoughLiquidity;
+        Currency input = zeroForOne ? key.currency0 : key.currency1;
+        Currency output = zeroForOne ? key.currency1 : key.currency0;
+        manager.take(input, address(this), uint256(amountSpecified));
+
+        if (!params.zeroForOne) {
+            // mint shares into the hook, here amountSpecified is an amount of USDC
+            address inputCurrency = Currency.unwrap(input);
+            IERC20Minimal(inputCurrency).approve(vaultAddress, uint256(amountSpecified));
+            uint256 shares = IFixedWeightStrategy(vaultAddress).deposit(uint256(amountSpecified), address(this));
+            // settle the shares to the pool manager
+            output.transfer(address(manager), shares);
+            manager.settle(output);
+            return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(amountSpecified.toInt128(), -shares.toInt128()), 0);
+        } else {
+            // redeem shares from the pool manager
+            manager.take(output, address(this), uint256(amountSpecified));
+            // redeem shares from the vault
+            uint256 assetAmount =
+                IFixedWeightStrategy(vaultAddress).withdraw(uint256(amountSpecified), address(this), address(this));
+            // settle the asset to the pool manager
+            input.transfer(address(manager), assetAmount);
+            manager.settle(input);
+            return (
+                BaseHook.beforeSwap.selector, toBeforeSwapDelta(amountSpecified.toInt128(), -assetAmount.toInt128()), 0
+            );
+        }
     }
 }
